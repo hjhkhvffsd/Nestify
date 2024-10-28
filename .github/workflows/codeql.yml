@@ -1,0 +1,101 @@
+name: "CodeQL Advanced and Lint Analysis"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '24 7 * * 2'
+
+permissions:
+  pull-requests: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    # La taille du runner impacte le temps d'analyse de CodeQL. Pour en savoir plus, consultez :
+    #   - https://gh.io/recommended-hardware-resources-for-running-codeql
+    #   - https://gh.io/supported-runners-and-hardware-resources
+    #   - https://gh.io/using-larger-runners (GitHub.com uniquement)
+    # Considérez l'utilisation de runners plus grands ou de machines avec plus de ressources pour d'éventuelles améliorations du temps d'analyse.
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    permissions:
+      # Requis pour tous les workflows
+      security-events: write
+      # Requis pour récupérer des packs CodeQL internes ou privés
+      packages: read
+      # Requis uniquement pour les workflows dans les référentiels privés
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - language: javascript-typescript
+          build-mode: none
+        # CodeQL prend en charge les valeurs de mots clés suivants pour 'language': 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'swift'
+        # Utilisez `c-cpp` pour analyser le code écrit en C, C++ ou les deux
+        # Utilisez 'java-kotlin' pour analyser le code écrit en Java, Kotlin ou les deux
+        # Utilisez 'javascript-typescript' pour analyser le code écrit en JavaScript, TypeScript ou les deux
+        # Pour en savoir plus sur la modification des langages analysés ou la personnalisation du mode de construction pour votre analyse,
+        # consultez https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/customizing-your-advanced-setup-for-code-scanning.
+        # Si vous analysez un langage compilé, vous pouvez modifier le 'build-mode' pour ce langage afin de personnaliser la façon dont
+        # votre code base est analysé, consultez https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/codeql-code-scanning-for-compiled-languages
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # Initialiser les outils CodeQL pour l'analyse.
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
+        # Si vous souhaitez spécifier des requêtes personnalisées, vous pouvez le faire ici ou dans un fichier de configuration.
+        # Par défaut, les requêtes listées ici remplaceront celles spécifiées dans un fichier de configuration.
+        # Préfixez la liste ici avec "+" pour utiliser ces requêtes et celles du fichier de configuration.
+        # Pour plus de détails sur les packs de requêtes de CodeQL, consultez : https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
+        # queries: security-extended,security-and-quality
+
+    # Si l'étape d'analyse échoue pour l'un des langages que vous analysez avec
+    # "Nous n'avons pas pu construire automatiquement votre code", modifiez la matrice ci-dessus
+    # pour définir le mode de construction sur "manual" pour ce langage. Ensuite, modifiez cette étape
+    # pour construire votre code.
+    # ℹ️ Programmes en ligne de commande à exécuter à l'aide du shell de l'OS.
+    #  Voir https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
+    - if: matrix.build-mode == 'manual'
+      shell: bash
+      run: |
+        echo 'Si vous utilisez un mode de construction "manual" pour l'un des'
+        echo 'langages que vous analysez, remplacez ceci par les commandes pour construire'
+        echo 'votre code, par exemple:'
+        echo '  make bootstrap'
+        echo '  make release'
+        exit 1
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
+
+    - name: Run ESLint
+      run: |
+        npx eslint . --fix
+
+    - name: Run Stylelint
+      run: |
+        npx stylelint "**/*.css" --fix
+
+    - name: Run HTMLHint
+      run: |
+        npx htmlhint "**/*.html"
+
+    - name: Commit and Push changes
+      if: ${{ github.event_name == 'pull_request' }}
+      run: |
+        git config --global user.name 'github-actions'
+        git config --global user.email 'github-actions@github.com'
+        git add .
+        git commit -m "Auto-fix lint issues"
+        git push origin ${{ github.head_ref }}
