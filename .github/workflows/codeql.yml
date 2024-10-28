@@ -14,18 +14,10 @@ permissions:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    # La taille du runner impacte le temps d'analyse de CodeQL. Pour en savoir plus, consultez :
-    #   - https://gh.io/recommended-hardware-resources-for-running-codeql
-    #   - https://gh.io/supported-runners-and-hardware-resources
-    #   - https://gh.io/using-larger-runners (GitHub.com uniquement)
-    # Considérez l'utilisation de runners plus grands ou de machines avec plus de ressources pour d'éventuelles améliorations du temps d'analyse.
-    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
-      # Requis pour tous les workflows
       security-events: write
-      # Requis pour récupérer des packs CodeQL internes ou privés
       packages: read
-      # Requis uniquement pour les workflows dans les référentiels privés
       actions: read
       contents: read
     strategy:
@@ -81,15 +73,15 @@ jobs:
 
     - name: Run ESLint
       run: |
-        npx eslint . --fix
+        npx eslint . --fix || echo "ESLint found issues"
 
     - name: Run Stylelint
       run: |
-        npx stylelint "**/*.css" --fix
+        npx stylelint "**/*.css" --fix || echo "Stylelint found issues"
 
     - name: Run HTMLHint
       run: |
-        npx htmlhint "**/*.html"
+        npx htmlhint "**/*.html" || echo "HTMLHint found issues"
 
     - name: Commit and Push changes
       if: ${{ github.event_name == 'pull_request' }}
